@@ -1,56 +1,87 @@
 # -*- coding:utf-8 -*-
-import http.client
-import json
-import urllib.request
-import re
-import os
+import os;
+import sys;
+import urllib.request;
+import requests;
 
-class BaiduImage(object):
-    def __init__(self):
-        super(BaiduImage,self).__init__()
-        print (u'图片获取中,CTRL+C 退出程序...')
-        self.page = 60                    #当前页数
-        if not os.path.exists(r'./image'):
-            os.mkdir(r'./image')
+def CheckArgs():
+    if(len(sys.argv) < 3):
+        print ('Usage: python baidupic.py [Keyword] [DownloadDir] [Pages=1]');
+        return False;
+    return True;
 
-    def request(self):
-        try:
-            while 1:
-                conn = http.client.HTTPConnection('image.baidu.com')
-                request_url ='/search/avatarjson?tn=resultjsonavatarnew&ie=utf-8&word=%E7%BE%8E%E5%A5%B3&cg=girl&rn=60&pn='+str(self.page)
-                headers = {'User-Agent' :'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0','Content-type': 'test/html'}
-                #body = urllib.urlencode({'tn':'resultjsonavatarnew','ie':'utf-8','word':'%E7%BE%8E%E5%A5%B3','cg':'girl','pn':self.page,'rn':'60'})
-                conn.request('GET',request_url,headers = headers)
-                r= conn.getresponse()
-                #print r.status
-                if r.status == 200:
-                    data = r.read()
+def Download(url, filename):
+    if(os.path.exists(sys.argv[2]) == False):
+        os.mkdir(sys.argv[2]);
+    filepath = os.path.join(sys.argv[2], '%s' % filename);
+    urllib.request.urlretrieve(url, filepath);
+    return ;
 
-                    data = str(data, errors='ignore')
-                    decode = json.loads(data)
-                    self.download(decode['imgs'])
+def Request(param):
+    searchurl = 'http://image.baidu.com/search/avatarjson';
+    response = requests.get(searchurl, params=param);
+    json = response.json()['imgs'];
 
-                self.page += 60
-        except Exception as e:
-            print(e)
-        finally:
-            conn.close()
+    for i in range(0, len(json)):
+        filename = os.path.split(json[i]['objURL'])[1];
+        print('Downloading from %s'% json[i]['objURL']);
+        Download(json[i]['objURL'], filename);
 
-    def download(self,data):
+    return ;
 
-        for d in data:
-            #url = d['thumbURL']   缩略图  尺寸200
-            #url = d['hoverURL']           尺寸360
-            url = d['objURL']
-            data = urllib.request.urlopen(url).read()
+def file_count(dirname,filter_types=[]):
+     '''Count the files in a directory includes its subfolder's files
+        You can set the filter types to count specific types of file'''
+     count=0
+     filter_is_on=False
+     if filter_types!=[]: filter_is_on=True
+     for item in os.listdir(dirname):
+         abs_item=os.path.join(dirname,item)
+         #print item
+         if os.path.isdir(abs_item):
+             #Iteration for dir
+             count+=file_count(abs_item,filter_types)
+         elif os.path.isfile(abs_item):
+             if filter_is_on:
+                 #Get file's extension name
+                 extname=os.path.splitext(abs_item)[1]
+                 if extname in filter_types:
+                     count+=1
+             else:
+                 count+=1
+     return count
 
-            pattern = re.compile(r'.*/(.*?)\.jpg',re.S)
-            item = re.findall(pattern,url)
-            FileName = str('image/')+item[0]+str('.jpg')
+def Search():
+    params = {
+        'tn' : 'resultjsonavatarnew',
+        'ie' : 'utf-8',
+        'cg' : '',
+        'itg' : '',
+        'z' : '0',
+        'fr' : '',
+        'width' : '',
+        'height' : '',
+        'lm' : '-1',
+        'ic' : '0',
+        's' : '0',
+        'word' : sys.argv[1],
+        'st' : '-1',
+        'gsm' : '',
+        'rn' : '30'
+        };
 
-            with open(FileName,'wb') as f:
-                f.write(data)
+    if(len(sys.argv) == 4):
+        pages = int(sys.argv[3]);
+    else:
+        pages = 1;
 
-if  __name__ == '__main__':
-    bi = BaiduImage()
-    bi.request()
+    for i in range(0, pages):
+        params['pn'] = '%d' % i;
+        Request(params);
+    return ;
+
+if __name__ == '__main__':
+    if(CheckArgs() == False):
+        sys.exit(-1);
+    Search();
+    print('Total Images:%d' % file_count(sys.argv[2]));
